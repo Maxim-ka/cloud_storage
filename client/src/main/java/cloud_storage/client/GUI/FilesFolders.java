@@ -1,7 +1,6 @@
 package cloud_storage.client.GUI;
 
 import cloud_storage.common.Rule;
-
 import java.io.File;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -10,10 +9,11 @@ import java.time.format.DateTimeFormatter;
 
 public class FilesFolders{
 
-    private String name;
+    private static final int NUMBER_OF_BYTES = 1024;
+    private final String name;
     private String size;
     private String dateTime;
-    private File file;
+    private final File file;
 
     File getFile() {
         return file;
@@ -46,8 +46,8 @@ public class FilesFolders{
     private String getSizeFile(){
         double sizeFile = file.length();
         int counter = 0;
-        while (sizeFile > 1024){
-            sizeFile = sizeFile / 1024;
+        while (sizeFile > NUMBER_OF_BYTES){
+            sizeFile = sizeFile / NUMBER_OF_BYTES;
             counter++;
         }
         String dimension = (counter == 0) ? "байт" : (counter == 1) ? "Кб" : (counter == 2) ? "Мб" : "Гб";

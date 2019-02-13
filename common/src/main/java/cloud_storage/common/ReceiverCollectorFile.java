@@ -10,18 +10,18 @@ public class ReceiverCollectorFile {
 
     private int countPart;
 
-    public void writeFile(String destinationFolder, TransferFile transferFile){
-        if (transferFile.getBytes() == null){
-            new File(String.format("%s/%s", destinationFolder, transferFile.getFile())).mkdir();
+    public void writeFile(String destinationFolder, Message message){
+        if (message.getBytes() == null){
+            new File(String.format("%s/%s", destinationFolder, message.getFile())).mkdir();
             return;
         }
-        String nameFile = String.format("%s/%s" ,destinationFolder, transferFile.getFile());
+        String nameFile = String.format("%s/%s" , destinationFolder, message.getFile());
         File tempFile;
         try(FileOutputStream outputStream = new FileOutputStream(tempFile = new File(nameFile.concat(".temp")), true)) {
             countPart++;
-            outputStream.write(transferFile.getBytes());
+            outputStream.write(message.getBytes());
             outputStream.close();
-            if (countPart == transferFile.getTotal()){
+            if (countPart == message.getTotal()){
                 checkNameFile(nameFile, tempFile);
                 countPart = 0;
             }

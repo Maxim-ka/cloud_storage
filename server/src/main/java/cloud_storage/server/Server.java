@@ -1,6 +1,5 @@
 package cloud_storage.server;
 
-
 import cloud_storage.common.FileSendingHandler;
 import cloud_storage.common.Rule;
 import cloud_storage.server.dataBase.AuthService;
@@ -14,11 +13,10 @@ import io.netty.handler.codec.serialization.ObjectDecoder;
 import io.netty.handler.codec.serialization.ObjectEncoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
-
 import java.sql.SQLException;
 import java.util.Vector;
 
-public class Server {
+class Server {
 
     private final AuthService authService = new AuthService();
     private final Vector<String> listOfOpenRootFolder;
@@ -29,7 +27,7 @@ public class Server {
         listOfOpenRootFolder = new Vector<>();
     }
 
-    public void run() throws InterruptedException, SQLException, ClassNotFoundException {
+    void run() throws InterruptedException, SQLException, ClassNotFoundException {
         EventLoopGroup bossGroup = new NioEventLoopGroup();
         EventLoopGroup workerGroup = new NioEventLoopGroup();
         try {
@@ -39,7 +37,7 @@ public class Server {
                     .handler(new LoggingHandler(LogLevel.INFO))
                     .childHandler(new ChannelInitializer<SocketChannel>(){
                         @Override
-                        public void initChannel(SocketChannel ch) throws Exception {
+                        public void initChannel(SocketChannel ch) {
                             ch.pipeline().addLast(new ObjectEncoder(),
                                     new ObjectDecoder(Rule.MAX_SIZE_OBJECT,ClassResolvers.cacheDisabled(null)),
                                     new AuthorizationHandler(authService, listOfOpenRootFolder),

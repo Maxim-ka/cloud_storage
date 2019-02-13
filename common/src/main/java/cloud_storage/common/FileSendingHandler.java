@@ -1,25 +1,22 @@
 package cloud_storage.common;
 
 import io.netty.channel.*;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 
 public class FileSendingHandler{
 
     private Path currentDirectory;
-    private Channel channel;
+    private final Channel channel;
 
     public FileSendingHandler(Channel channel) {
         this.channel = channel;
     }
 
-    public RequestCatalog actionWithFile(String command, String currentFolder, String destinationFolder, File[] files){
+    public Message actionWithFile(String command, String currentFolder, String destinationFolder, File[] files){
         currentDirectory = Paths.get(currentFolder);
         for (File file : files) {
             if (file.isFile()) {
@@ -44,7 +41,7 @@ public class FileSendingHandler{
                 try {
                     Files.walkFileTree(file.toPath(), new FileVisitor<Path>() {
                         @Override
-                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                        public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
                             if (command.startsWith(SCM.COPY) || command.startsWith(SCM.RELOCATE)) {
                                 Path relativeDir = currentDirectory.relativize(dir);
                                 readFolder(destinationFolder, relativeDir.toFile());
@@ -69,7 +66,7 @@ public class FileSendingHandler{
                         }
 
                         @Override
-                        public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+                        public FileVisitResult visitFileFailed(Path file, IOException exc) {
                             System.out.println(exc.getCause().toString()); // TODO: 24.07.2018 логирование и сообщения
                             System.out.println(exc.getMessage());
                             return FileVisitResult.CONTINUE;
@@ -88,7 +85,10 @@ public class FileSendingHandler{
                 }
             }
         }
-        return new RequestCatalog(SCM.OK, currentFolder, new File(currentFolder).listFiles());
+        Message.Builder builder = new Message.Builder(SCM.OK)
+            .addNameCatalog(currentFolder)
+            .addCatalogFile(new File(currentFolder).listFiles());
+        return builder.build();
     }
 
     private File getRelativePathFile(File file){
@@ -96,7 +96,12 @@ public class FileSendingHandler{
     }
 
     private void readFolder(String destinationFolder, File file){
-        channel.writeAndFlush(new TransferFile(destinationFolder, file, 1, 1, null));
+        Message.Builder builder = new Message.Builder(SCM.MOVING)
+            .addNameCatalog(destinationFolder)
+            .addFile(file)
+            .addPortion(1)
+            .addTotal(1);
+        channel.writeAndFlush(builder.build());
     }
 
     private void readFile(String destinationFolder, File file){
@@ -111,7 +116,13 @@ public class FileSendingHandler{
                 randomAccessFile.read(bytes);
                 int residue = (int)(randomAccessFile.length() - randomAccessFile.getFilePointer());
                 if (residue < Rule.MAX_NUMBER_TRANSFER_BYTES) size = residue;
-                channel.writeAndFlush(new TransferFile(destinationFolder, relFile, ++portion, totalPart, bytes));
+                Message.Builder builder = new Message.Builder(SCM.MOVING)
+                    .addNameCatalog(destinationFolder)
+                    .addFile(relFile)
+                    .addPortion(++portion)
+                    .addTotal(totalPart)
+                    .addArrayBytes(bytes);
+                channel.writeAndFlush(builder.build());
             }
         } catch (IOException e) {
             e.printStackTrace();

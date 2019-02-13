@@ -1,6 +1,6 @@
 package cloud_storage.server;
 
-import cloud_storage.common.RequestCatalog;
+import cloud_storage.common.Message;
 import cloud_storage.common.SCM;
 import cloud_storage.server.dataBase.AuthService;
 import io.netty.channel.ChannelFuture;
@@ -10,7 +10,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import java.io.File;
 import java.util.Vector;
 
-public class AuthorizationHandler extends ChannelInboundHandlerAdapter{
+class AuthorizationHandler extends ChannelInboundHandlerAdapter{
 
     private final AuthService authService;
     private final Vector<String> listOfOpenChannels;
@@ -21,28 +21,31 @@ public class AuthorizationHandler extends ChannelInboundHandlerAdapter{
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        String string = (String)msg;
-        String[] strings = string.split("\\s+");
-        if (string.startsWith(SCM.AUTH) && strings.length == 3){
-            String catalogUser = authService.getCatalogUser(strings[1], strings[2]);
-            if (catalogUser != null){
-                if (!isDuplicateCatalog(catalogUser)){
-                    if (new File(catalogUser).exists()){
-                        String message = String.format("%s %s", strings[0], SCM.OK);
-                        ctx.fireChannelRead(String.format("%s %s", strings[0], catalogUser));
-                        File[] catalogFiles = new File(catalogUser).listFiles();
-                        ctx.writeAndFlush(new RequestCatalog(message, catalogUser, catalogFiles));
-                        ctx.pipeline().remove(this);
-                        return;
-                    }
-                }// TODO: 17.07.2018 написать коды отказов
+    public void channelRead(ChannelHandlerContext ctx, Object msg)  {
+        if (msg instanceof  Message){
+            Message message = (Message) msg;
+            String string = message.getCommand();
+            String[] strings = string.split("\\s+");
+            if (string.startsWith(SCM.AUTH) && strings.length == 3){
+                String catalogUser = authService.getCatalogUser(strings[1], strings[2]);
+                if (catalogUser != null){
+                    if (!isDuplicateCatalog(catalogUser)){
+                        if (new File(catalogUser).exists()){
+                            Message.Builder builder = new Message.Builder(SCM.AUTH_OK)
+                                .addNameCatalog(catalogUser);
+                            ctx.fireChannelRead(builder.build());
+                            builder.addCatalogFile(new File(catalogUser).listFiles());
+                            ctx.writeAndFlush(builder.build());
+                            ctx.pipeline().remove(this);
+                            return;
+                        }
+                    }// TODO: 17.07.2018 написать коды отказов
+                }
             }
+            ChannelFuture f = ctx.channel().writeAndFlush(new Message.Builder(SCM.AUTH_BAD).build());
+            f.channel().disconnect();
+            f.addListener(ChannelFutureListener.CLOSE);
         }
-        String message = String.format("%s %s", strings[0], SCM.BAD);
-        ChannelFuture f = ctx.channel().writeAndFlush(new RequestCatalog(message,null, null));
-        f.channel().disconnect();
-        f.addListener(ChannelFutureListener.CLOSE);
     }
 
     private boolean isDuplicateCatalog(String catalog){

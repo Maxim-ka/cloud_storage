@@ -3,6 +3,8 @@ package cloud_storage.common;
 public class SCM {
 
     public static final String AUTH = "AUTH";
+    public static final String AUTH_OK = "AUTH_OK";
+    public static final String AUTH_BAD = "AUTH_BAD";
     public static final String OK = "OK";
     public static final String BAD = "BAD";
     public static final String DISCONNECT = "DISCONNECT";
@@ -10,6 +12,7 @@ public class SCM {
     public static final String RENAME = "RENAME";
     public static final String COPY = "COPY";
     public static final String RELOCATE = "RELOCATE";
+    public static final String MOVING = "MOVING";
     public static final String DELETE = "DELETE";
     public static final String FOLDER = "FOLDER";
     public static final String UPDATE = "UPDATE";

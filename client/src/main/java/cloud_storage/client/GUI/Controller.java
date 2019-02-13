@@ -1,13 +1,12 @@
 package cloud_storage.client.GUI;
 
 import cloud_storage.client.Client;
-import cloud_storage.common.RequestCatalog;
+import cloud_storage.common.Message;
 import cloud_storage.common.Rule;
 import cloud_storage.common.SCM;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
-import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -17,7 +16,6 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.Pane;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
-
 import java.io.File;
 import java.net.URL;
 import java.nio.file.Paths;
@@ -62,8 +60,7 @@ public class Controller implements Initializable{
     private ObservableList<FilesFolders> catalogUser;
     private MultipleSelectionModel<FilesFolders> selectedLocal;
     private MultipleSelectionModel<FilesFolders> selectedServer;
-    private boolean onServer;
-    private String rootServerFolder;
+    private boolean toServer;
 
     public ObservableList<FilesFolders> getData() {
         return data;
@@ -100,37 +97,37 @@ public class Controller implements Initializable{
     }
 
     public void copy(ActionEvent actionEvent) {
-        if (!onServer && currentDirectory.getText() == null) return;
-        if (onServer && directoryOnServer.getText() == null) return;
+        if (!toServer && currentDirectory.getText() == null) return;
+        if (toServer && directoryOnServer.getText() == null) return;
         if (getSelected() == null) return;   // TODO: 24.07.2018 предупреждение о неправильных действиях
-        if (onServer){
-            RequestCatalog requestCatalog = Client.getInstance().sendRequestToServer(SCM.COPY, currentDirectory.getText(), directoryOnServer.getText(),getSelected());
-            showChange(currentDirectory, data, requestCatalog.getCurrentCatalog(), requestCatalog.getCatalog());
+        if (toServer){
+            Message catalog = Client.getInstance().sendRequestToServer(SCM.COPY, currentDirectory.getText(), directoryOnServer.getText(),getSelected());
+            showChange(currentDirectory, data, catalog.getNameCatalog(), catalog.getCatalogFiles());
         }else {
-            Client.getInstance().sendRequestGetFromServer(new RequestCatalog(SCM.COPY, directoryOnServer.getText(), getSelected()));
+            Client.getInstance().sendRequestGetFromServer(createMessageToServer(SCM.COPY, getSelected()));
         }
     }
 
     public void relocate(ActionEvent actionEvent) {
-        if (!onServer && currentDirectory.getText() == null) return;
-        if (onServer && directoryOnServer.getText() == null) return;
+        if (!toServer && currentDirectory.getText() == null) return;
+        if (toServer && directoryOnServer.getText() == null) return;
         if (getSelected() == null) return;   // TODO: 24.07.2018 предупреждение о неправильных действиях
-        if (onServer){
-            RequestCatalog requestCatalog = Client.getInstance().sendRequestToServer(SCM.RELOCATE, currentDirectory.getText(), directoryOnServer.getText(),getSelected());
-            showChange(currentDirectory, data, requestCatalog.getCurrentCatalog(), requestCatalog.getCatalog());
+        if (toServer){
+            Message catalog = Client.getInstance().sendRequestToServer(SCM.RELOCATE, currentDirectory.getText(), directoryOnServer.getText(),getSelected());
+            showChange(currentDirectory, data, catalog.getNameCatalog(), catalog.getCatalogFiles());
         }else {
-            Client.getInstance().sendRequestGetFromServer(new RequestCatalog(SCM.RELOCATE, directoryOnServer.getText(), getSelected()));
+            Client.getInstance().sendRequestGetFromServer(createMessageToServer(SCM.RELOCATE, getSelected()));
         }
     }
 
     public void delete(ActionEvent actionEvent) {
-        if (!onServer && currentDirectory.getText() == null) return;
+        if (!toServer && currentDirectory.getText() == null) return;
         if (getSelected() == null) return;   // TODO: 24.07.2018 предупреждение о неправильных действиях
-        if (onServer){
-            RequestCatalog requestCatalog = Client.getInstance().sendRequestToServer(SCM.DELETE, currentDirectory.getText(), directoryOnServer.getText(),getSelected());
-            showChange(currentDirectory, data, requestCatalog.getCurrentCatalog(), requestCatalog.getCatalog());
+        if (toServer){
+            Message catalog = Client.getInstance().sendRequestToServer(SCM.DELETE, currentDirectory.getText(), directoryOnServer.getText(),getSelected());
+            showChange(currentDirectory, data, catalog.getNameCatalog(), catalog.getCatalogFiles());
         }else {
-            Client.getInstance().sendRequestGetFromServer(new RequestCatalog(SCM.DELETE, directoryOnServer.getText(), getSelected()));
+            Client.getInstance().sendRequestGetFromServer(createMessageToServer(SCM.DELETE, getSelected()));
         }
     }
 
@@ -139,17 +136,24 @@ public class Controller implements Initializable{
 
     public void update(ActionEvent actionEvent) {
         if (Client.getInstance().isAuthorized())
-            Client.getInstance().sendRequestGetFromServer(new RequestCatalog(SCM.UPDATE, directoryOnServer.getText(), null));
+            Client.getInstance().sendRequestGetFromServer(createMessageToServer(SCM.UPDATE, null));
         if (!data.isEmpty()) showChange(currentDirectory, data, currentDirectory.getText(), new File(currentDirectory.getText()).listFiles());
+    }
+
+    private Message createMessageToServer(String command, File[] catalog){
+        Message.Builder builder = new Message.Builder(command)
+            .addNameCatalog(directoryOnServer.getText())
+            .addCatalogFile(catalog);
+        return builder.build();
     }
 
     private File[] getSelected(){
         if (!selectedLocal.isEmpty()){
-            onServer = true;
+            toServer = true;
             return translateListIntoArray(selectedLocal);
         }
         if (!selectedServer.isEmpty()){
-            onServer = false;
+            toServer = false;
             return translateListIntoArray(selectedServer);
         }
         // TODO: 16.07.2018 сообщение о отсутвии выбранных файлов
@@ -199,9 +203,10 @@ public class Controller implements Initializable{
             // TODO: 12.07.2018 написать окно предупреждения
             return;
         }
-        if (Client.getInstance().connect())
-            Client.getInstance().sendRequestGetFromServer(String.format("%s %s %s", SCM.AUTH, login.getText(), pass.getText()));
-
+        if (Client.getInstance().connect()){
+            Message.Builder builder = new Message.Builder(String.format("%s %s %s", SCM.AUTH, login.getText(), pass.getText()));
+            Client.getInstance().sendRequestGetFromServer(builder.build());
+        }
     }
 
     public void authorization(){
@@ -218,47 +223,44 @@ public class Controller implements Initializable{
         data = FXCollections.observableArrayList();
         catalogUser = FXCollections.observableArrayList();
 
-        serverName.setCellValueFactory (new PropertyValueFactory<FilesFolders, String>("name"));
-        serverSize.setCellValueFactory (new PropertyValueFactory <FilesFolders, String> ("size"));
-        serverLastModified.setCellValueFactory (new PropertyValueFactory <FilesFolders, String> ("dateTime"));
+        serverName.setCellValueFactory (new PropertyValueFactory<>("name"));
+        serverSize.setCellValueFactory (new PropertyValueFactory <> ("size"));
+        serverLastModified.setCellValueFactory (new PropertyValueFactory <> ("dateTime"));
         server.setItems(catalogUser.sorted(new Ordering()));
         selectedServer = server.getSelectionModel();
         selectedServer.setSelectionMode(SelectionMode.MULTIPLE);
-        server.setOnMouseClicked(new EventHandler<MouseEvent>(){
-            @Override
-            public void handle(MouseEvent event) {
-                if (isNotGoToLevel(catalogUser, selectedServer, event)) return;
-                if (selectedServer.getSelectedItem().getName().equals(Rule.TO_UP_LEVEL)){
-                    String folderUp = Paths.get(directoryOnServer.getText()).getParent().toString();
-                    Client.getInstance().sendRequestGetFromServer(new RequestCatalog(SCM.UP, folderUp, null));
-                    return;
-                }
-                File folderDown;
-                if ((folderDown = selectedServer.getSelectedItem().getFile()).isDirectory()){
-                    Client.getInstance().sendRequestGetFromServer(new RequestCatalog(SCM.DOWN, folderDown.getPath(), null));
-                }
+        server.setOnMouseClicked(event -> {
+            if (isNotGoToLevel(catalogUser, selectedServer, event)) return;
+            if (selectedServer.getSelectedItem().getName().equals(Rule.TO_UP_LEVEL)){
+                Message.Builder builder = new Message.Builder(SCM.UP)
+                    .addNameCatalog(Paths.get(directoryOnServer.getText()).getParent().toString());
+                Client.getInstance().sendRequestGetFromServer(builder.build());
+                return;
+            }
+            File folderDown;
+            if ((folderDown = selectedServer.getSelectedItem().getFile()).isDirectory()){
+                Message.Builder builder = new Message.Builder(SCM.DOWN)
+                    .addNameCatalog(folderDown.getPath());
+                Client.getInstance().sendRequestGetFromServer(builder.build());
             }
         });
 
-        localName.setCellValueFactory (new PropertyValueFactory<FilesFolders, String>("name"));
-        localSize.setCellValueFactory (new PropertyValueFactory <FilesFolders, String> ("size"));
-        localLastModified.setCellValueFactory (new PropertyValueFactory <FilesFolders, String> ("dateTime"));
+        localName.setCellValueFactory (new PropertyValueFactory<>("name"));
+        localSize.setCellValueFactory (new PropertyValueFactory <> ("size"));
+        localLastModified.setCellValueFactory (new PropertyValueFactory <> ("dateTime"));
         local.setItems(data.sorted(new Ordering()));
         selectedLocal = local.getSelectionModel();
         selectedLocal.setSelectionMode(SelectionMode.MULTIPLE);
-        local.setOnMouseClicked(new EventHandler<MouseEvent>() {
-            @Override
-            public void handle(MouseEvent event) {
-                if (isNotGoToLevel(data, selectedLocal, event)) return;
-                if (selectedLocal.getSelectedItem().getName().equals(Rule.TO_UP_LEVEL)){
-                    File folderUp = Paths.get(currentDirectory.getText()).getParent().toFile();
-                    showChange(currentDirectory, data, folderUp.getAbsolutePath(),folderUp.listFiles());
-                    return;
-                }
-                File file;
-                if ((file = selectedLocal.getSelectedItem().getFile()).isDirectory()){
-                    showChange(currentDirectory, data, file.getAbsolutePath(),file.listFiles());
-                }
+        local.setOnMouseClicked(event -> {
+            if (isNotGoToLevel(data, selectedLocal, event)) return;
+            if (selectedLocal.getSelectedItem().getName().equals(Rule.TO_UP_LEVEL)){
+                File folderUp = Paths.get(currentDirectory.getText()).getParent().toFile();
+                showChange(currentDirectory, data, folderUp.getAbsolutePath(),folderUp.listFiles());
+                return;
+            }
+            File file;
+            if ((file = selectedLocal.getSelectedItem().getFile()).isDirectory()){
+                showChange(currentDirectory, data, file.getAbsolutePath(), file.listFiles());
             }
         });
     }

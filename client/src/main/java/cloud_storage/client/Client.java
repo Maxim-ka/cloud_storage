@@ -1,9 +1,8 @@
 package cloud_storage.client;
 
-
 import cloud_storage.client.GUI.Controller;
 import cloud_storage.common.FileSendingHandler;
-import cloud_storage.common.RequestCatalog;
+import cloud_storage.common.Message;
 import cloud_storage.common.Rule;
 import cloud_storage.common.SCM;
 import io.netty.bootstrap.Bootstrap;
@@ -20,13 +19,13 @@ import java.io.File;
 
 public class Client {
 
-    private static final Client INSTANCE = new Client(Rule.IP_ADDRESS, Rule.PORT);
+    private static volatile Client instance;
 
-    private String host;
-    private int port;
+    private final String host;
+    private final int port;
     private Controller controller;
-    private EventLoopGroup workerGroup;
-    private Bootstrap bootstrap;
+    private final EventLoopGroup workerGroup;
+    private final Bootstrap bootstrap;
     private ChannelFuture f;
     private FileSendingHandler fileSendingHandler;
     private boolean authorized;
@@ -53,15 +52,22 @@ public class Client {
         bootstrap.option(ChannelOption.SO_KEEPALIVE, true);
     }
 
-    public static Client getInstance(){
-        return INSTANCE;
+    public static synchronized Client getInstance(){
+        if (instance == null) {
+            synchronized (Client.class){
+                if (instance == null){
+                    instance = new Client(Rule.IP_ADDRESS, Rule.PORT);
+                }
+            }
+        }
+        return instance;
     }
 
     public void sendRequestGetFromServer(Object message){
         f.channel().writeAndFlush(message);
     }
 
-    public RequestCatalog sendRequestToServer(String command, String currentFolder, String destinationFolder, File[] fileList){
+    public Message sendRequestToServer(String command, String currentFolder, String destinationFolder, File[] fileList){
         return fileSendingHandler.actionWithFile(command, currentFolder, destinationFolder, fileList);
     }
 
@@ -69,7 +75,7 @@ public class Client {
         try {
             bootstrap.handler(new ChannelInitializer<SocketChannel>() {
                 @Override
-                public void initChannel(SocketChannel ch) throws Exception {
+                public void initChannel(SocketChannel ch) {
                     ch.pipeline().addLast(new ObjectEncoder(),
                         new ObjectDecoder(Rule.MAX_SIZE_OBJECT, ClassResolvers.cacheDisabled(null)),
                         new ResponseHandler(controller));
@@ -90,7 +96,7 @@ public class Client {
 
     public void disconnect() {
         try {
-            sendRequestGetFromServer(SCM.DISCONNECT);
+            sendRequestGetFromServer(new Message.Builder(SCM.DISCONNECT).build());
             f.channel().disconnect().sync();
         } catch (InterruptedException e) {
             e.printStackTrace();

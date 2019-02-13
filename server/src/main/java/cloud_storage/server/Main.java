@@ -4,7 +4,7 @@ import cloud_storage.common.Rule;
 
 import java.sql.SQLException;
 
-public class Main {
+class Main {
 
     public static void main(String[] args) {
         try {

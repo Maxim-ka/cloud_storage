@@ -1,7 +1,6 @@
 package cloud_storage.client.GUI;
 
 import cloud_storage.client.Client;
-import io.netty.channel.ChannelFuture;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
